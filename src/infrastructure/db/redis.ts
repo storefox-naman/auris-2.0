@@ -1,4 +1,4 @@
-import { config } from './config';
+import { config } from '../../config/config';
 import Redis from 'ioredis';
 
 class RedisClient {

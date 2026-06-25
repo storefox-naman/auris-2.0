@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { startConsumer } from "./queueConsumer";
+import { startConsumer } from "./infrastructure/queues/queueConsumer";
 import directAudioPipeline from "./directAudio/directAudioPipeline";
 import { Types } from "mongoose";
 

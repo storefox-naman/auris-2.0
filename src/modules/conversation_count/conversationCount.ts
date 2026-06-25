@@ -1,7 +1,7 @@
 import fs from "fs";
 import { Types } from "mongoose";
 import OpenAI from "openai";
-import { config } from "../config";
+import { config } from "../config/config";
 import { TenantConfig } from "../models/tenantConfigModel";
 
 export async function conversationCount(
