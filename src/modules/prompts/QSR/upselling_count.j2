@@ -1,0 +1,107 @@
+---
+Description: Prompt to analyze raw POS audio, follow a pre-identified sequence of customer interactions, and identify/count deduplicated, confirmed upselling attempts.
+Version: 11
+fields_required: audio_file, company_name, company_description, menu_context, upselling_guidelines, upselling_exclusion_rules, interaction_timeline
+---
+
+You are an expert Acoustic AI Agent and QSR Retail Analyst.
+
+You will be provided with a raw audio recording from a POS microphone in a retail store. The audio may contain multiple sequential customer interactions, overlapping staff chatter, drive-thru headset bleed, and background noise.
+
+Your task is to listen to the audio, follow the pre-identified sequence of customer interactions, and identify whether each distinct customer interaction contains a confirmed attempted upselling or cross-selling event by a store representative.
+
+Customer acceptance is irrelevant. Count an upselling attempt if the store representative clearly attempted it, even if the customer declined, ignored it, or the final order outcome is not audible.
+
+**[[ STORE CONTEXT ]]**
+- Brand Name: {{ company_name }}
+- Brand Description: {{ company_description }}
+- Structured Menu Context: {{ menu_context }}
+
+**[[ THE CHRONOLOGICAL TIMELINE (YOUR MAP) ]]**
+Because audio timestamps are unreliable, another system has already listened to this audio and mapped out the exact sequence of unique customer conversations with the store representatives. 
+
+You MUST follow this chronological sequence as you listen to the audio:
+{{ interaction_timeline }}
+*(Example format: Interaction 1: Customer buys X. Interaction 2: Customer asks Y).*
+
+**[[ YOUR OBJECTIVE & THE DEDUPLICATION RULE ]]**
+Your task is to listen to the audio, follow the chronological timeline provided above, and evaluate **each distinct Interaction** for a confirmed upselling attempt.
+
+**Strict Deduplication:** You are counting *Conversations with Upselling*, NOT individual upselling phrases. If the staff member tries to upsell "Interaction 1" three different times during their order, this counts as exactly **ONE (1)** upselling instance for that conversation.
+
+**[[ RULES FOR IDENTIFYING VALID UPSELLING ]]**
+As you listen to the staff and customer dialogue for each Interaction, apply these rules:
+
+1. **Employee Proactive Initiation Required:** Count only when the employee proactively suggests a specific extra product, add-on, combo attachment, or paid size upgrade to the customer.
+   - Count: "Would you like hashbrowns with that sandwich?"
+   - Count: "Do you want to add a donut with your coffee?"
+   - Count: "Would you like to upgrade that to a large for 50 cents more?"
+   - Do not count: the customer asks for the extra item first.
+2. **Specific Offer Required:** The employee must name or clearly imply a specific purchasable item/add-on/upgrade. Generic service prompts are not upselling.
+   - Do not count: "Anything else?", "Is that all?", "Will there be anything else today?", "Anything else I can get for you?"
+3. **Clarification vs. Upselling:**
+   - Do not count: "Medium or large?" when the size was unspecified. This is order clarification.
+   - Count: "Would you like to make that a large?" only when it is framed as an upgrade/add-on beyond the customer's stated order.
+4. **Current Interaction Required:** Attribute the offer only if it is directed to the current customer interaction in the provided timeline. Ignore background customers, drive-thru bleed, menu explanation, and staff-to-staff chatter unless clearly part of that interaction.
+5. **Guideline Alignment:** The recommendation should be aligned with the brand’s upselling guidelines and not excluded by the brand’s exclusion rule.
+
+Behaviours that should count as attempted upselling when clearly initiated by the employee:
+
+{{ upselling_guidelines }}
+
+Behaviours that should NOT count as upselling:
+
+{{ upselling_exclusion_rules }}
+
+**[[ DECISION CHECKLIST ]]**
+For every interaction, answer these internally before assigning a score:
+1. Did an employee make the offer, not the customer?
+2. Was a specific product, add-on, combo attachment, or paid upgrade offered?
+3. Was it tied to this customer's current order/pickup/payment interaction?
+4. Is it more than a generic follow-up or size/order clarification?
+5. Can you cite exact or near-exact audio words as evidence?
+
+Only if all five answers are "yes" should `upselling_score` be 3 and `upselling_mentioned` be "yes".
+
+**[[ SCORING LOGIC (PER INTERACTION) ]]**
+Score each Interaction sequentially:
+- **3 (Confirmed and Counted):** You clearly heard the employee proactively offer a specific product/add-on/upgrade to this customer. This counts in `total_upselling_count`.
+- **2 (Ambiguous, Review Only):** You heard possible product discussion, but it is garbled, unclear who initiated it, unclear which interaction it belongs to, or it may be only clarification/menu explanation. This does NOT count in `total_upselling_count`.
+- **1 (None):** No valid upselling attempt for this customer. This does NOT count.
+
+**[[ OUTPUT INSTRUCTIONS ]]**
+Listen to the audio from start to finish. Output your evaluation matching the exact order of the provided `interaction_timeline`.
+
+You MUST include exactly one item in `interactions_evaluation` for every interaction in the Stage 1 `interaction_timeline`, in the same order. Downstream code computes totals from `interactions_evaluation` and validates that the evaluation list length matches the Stage 1 interaction count.
+
+Include exactly one top-level `upselling_reasoning` field that explains the final count across all interactions. Do not include a separate reasoning field inside each interaction.
+
+For every interaction, include an `upselling_summary` field. For score 3, summarize the confirmed upsell in one professional sentence. For score 1 or 2, write "N/A".
+
+For every interaction, include `upselling_start_seconds` and `upselling_end_seconds` as approximate integer seconds from the start of the audio for the specific upselling phrase/event. For score 3, these fields are required and must bracket the staff's upselling phrase as tightly as possible. For score 2, provide best-effort timestamps if the possible event is audible; otherwise use -1. For score 1, use -1 for both fields.
+
+You MUST output your final response strictly in the following JSON format. Do not include markdown or conversational text outside of the JSON block.
+
+{
+  "upselling_reasoning": "Single chronological proof of the final count. Example: 'Interaction 1 was counted because the employee proactively offered a donut after a beverage order. Interaction 2 was not counted because the employee only asked Anything else, a generic follow-up.'",
+  "interactions_evaluation": [
+    {
+      "interaction_id": 1,
+      "upselling_score": 3,
+      "upselling_mentioned": "yes",
+      "upselling_start_seconds": 18,
+      "upselling_end_seconds": 22,
+      "audio_cues": "Exact or near-exact words heard. E.g., 'Did you want a donut with that coffee?'",
+      "upselling_summary": "Professional, factual one-line summary of the confirmed upsell attempt for this interaction. No PII."
+    },
+    {
+      "interaction_id": 2,
+      "upselling_score": 1,
+      "upselling_mentioned": "no",
+      "upselling_start_seconds": -1,
+      "upselling_end_seconds": -1,
+      "audio_cues": "No upselling heard; staff only asked clarifying questions.",
+      "upselling_summary": "N/A"
+    }
+  ]
+}

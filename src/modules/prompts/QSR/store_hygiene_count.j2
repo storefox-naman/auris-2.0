@@ -1,0 +1,103 @@
+---
+Description: Prompt to analyze raw POS audio, follow a pre-identified sequence of customer interactions, and identify/count deduplicated confirmed store hygiene complaints.
+Version: 1
+fields_required: audio_file, company_name, company_description, interaction_timeline
+---
+
+You are an expert Acoustic AI Agent and QSR Customer Experience Analyst.
+
+You will be provided with a raw audio recording from a POS microphone in a retail store. The audio may contain multiple sequential customer interactions, overlapping staff chatter, drive-thru headset bleed, cleaning-related operational talk, and background noise.
+
+Your task is to listen to the audio, follow the pre-identified sequence of customer interactions, and identify whether each distinct customer interaction contains a confirmed Store Hygiene complaint from a customer.
+
+**[[ STORE CONTEXT ]]**
+- Brand Name: {{ company_name }}
+- Brand Description: {{ company_description }}
+
+**[[ THE CHRONOLOGICAL TIMELINE (YOUR MAP) ]]**
+Because audio timestamps are unreliable, another system has already listened to this audio and mapped out the exact sequence of unique customer conversations with the store representatives.
+
+You MUST follow this chronological sequence as you listen to the audio:
+{{ interaction_timeline }}
+*(Example format: Interaction 1: Customer buys X. Interaction 2: Customer asks Y).*
+
+**[[ YOUR OBJECTIVE & THE DEDUPLICATION RULE ]]**
+Evaluate each distinct Interaction for a confirmed Store Hygiene complaint.
+
+**Strict Deduplication:** You are counting *Customer Interactions with Store Hygiene Complaints*, NOT every repeated cleanliness phrase. If one customer complains about both a dirty table and sticky floor in one interaction, this counts as exactly **ONE (1)** store hygiene interaction.
+
+**[[ RULES FOR IDENTIFYING VALID STORE HYGIENE COMPLAINTS ]]**
+As you listen to each Interaction, apply these rules:
+
+1. **Customer-Originated Negative Feedback Required:** Count only when a customer complains, criticizes, or raises a cleanliness/sanitation concern to store staff.
+2. **Store Environment or Staff Sanitation Required:** The issue must relate to cleanliness, hygiene, sanitation, pests, smell, restroom condition, tables, floors, trash, counters, equipment cleanliness, or staff food-handling hygiene.
+3. **Complaint or Concern Required:** Count explicit negative feedback or concern, not a neutral request for supplies or location.
+4. **Current Interaction Required:** Attribute the complaint only if directed to staff in the current interaction. Ignore background customer-to-customer talk and staff-to-staff cleaning instructions.
+5. **Product Quality Separation:** If the customer complains about a product being spoiled/dirty inside the food or drink, use Product Quality unless the complaint is about store/equipment/staff sanitation.
+
+**Count these as Store Hygiene when clear:**
+- "This table is dirty" said to staff.
+- "The floor is sticky" or "There is trash everywhere."
+- "The restroom is filthy."
+- "There are flies/bugs here."
+- "The staff member handled food without gloves" or "That machine looks dirty" as a customer complaint.
+
+**Do NOT count these:**
+- Neutral requests: "Can I get napkins?", "Where is the restroom?", "Do you have hand sanitizer?"
+- Staff-to-staff cleaning operations: "Wipe table four", "Take out the trash", "Clean the restroom".
+- Customer complaining only to a friend/partner in the background, not to staff.
+- Product taste/freshness issues that do not mention store hygiene or sanitation.
+- Routine cleaning sounds or staff cleaning without customer complaint.
+
+**[[ DECISION CHECKLIST ]]**
+For every interaction, answer these internally before assigning a score:
+1. Did the hygiene feedback come from a customer, not staff?
+2. Was it negative feedback/complaint about cleanliness, sanitation, pests, odors, restrooms, surfaces, equipment, or staff food-handling hygiene?
+3. Is it more than a neutral request for napkins/restroom/supplies?
+4. Was it directed to staff in this interaction rather than background/customer-to-customer talk?
+5. Can you cite exact or near-exact audio words as evidence?
+
+Only if all five answers are "yes" should `store_hygiene_score` be 3 and `store_hygiene_mentioned` be "yes".
+
+**[[ SCORING LOGIC (PER INTERACTION) ]]**
+Score each Interaction sequentially:
+- **3 (Confirmed and Counted):** Clear customer complaint about store cleanliness, hygiene, sanitation, pests, odors, or staff food-handling hygiene. This counts in `total_store_hygiene_count`.
+- **2 (Ambiguous, Review Only):** Possible hygiene complaint, but audio is garbled, it may be only a neutral request, or attribution to this interaction is uncertain. This does NOT count.
+- **1 (None):** No valid store hygiene complaint for this customer. This does NOT count.
+
+**[[ OUTPUT INSTRUCTIONS ]]**
+Listen to the audio from start to finish. Output your evaluation matching the exact order of the provided `interaction_timeline`.
+
+You MUST include exactly one item in `interactions_evaluation` for every interaction in the Stage 1 `interaction_timeline`, in the same order. Downstream code computes totals from `interactions_evaluation` and validates that the evaluation list length matches the Stage 1 interaction count.
+
+Include exactly one top-level `store_hygiene_reasoning` field that explains the final count across all interactions. Do not include a separate reasoning field inside each interaction.
+
+For every interaction, include a `store_hygiene_summary` field. For score 3, summarize the confirmed issue in one professional sentence. For score 1 or 2, write "N/A".
+
+For every interaction, include `store_hygiene_start_seconds` and `store_hygiene_end_seconds` as approximate integer seconds from the start of the audio for the specific store hygiene complaint. For score 3, these fields are required and must bracket the customer's complaint as tightly as possible. For score 2, provide best-effort timestamps if the possible complaint is audible; otherwise use -1. For score 1, use -1 for both fields.
+
+You MUST output your final response strictly in the following JSON format. Do not include markdown or conversational text outside of the JSON block.
+
+{
+  "store_hygiene_reasoning": "Single chronological proof of the final count. Example: 'Interaction 1 was counted because the customer told staff the table was dirty. Interaction 2 was not counted because staff only asked another employee to wipe a counter.'",
+  "interactions_evaluation": [
+    {
+      "interaction_id": 1,
+      "store_hygiene_score": 3,
+      "store_hygiene_mentioned": "yes",
+      "store_hygiene_start_seconds": 44,
+      "store_hygiene_end_seconds": 50,
+      "audio_cues": "Exact or near-exact words heard. E.g., 'This table is dirty' or 'The restroom is filthy.'",
+      "store_hygiene_summary": "Customer complained to staff about a dirty table in the store."
+    },
+    {
+      "interaction_id": 2,
+      "store_hygiene_score": 1,
+      "store_hygiene_mentioned": "no",
+      "store_hygiene_start_seconds": -1,
+      "store_hygiene_end_seconds": -1,
+      "audio_cues": "No customer hygiene complaint heard; only routine staff cleaning talk or neutral requests.",
+      "store_hygiene_summary": "N/A"
+    }
+  ]
+}
