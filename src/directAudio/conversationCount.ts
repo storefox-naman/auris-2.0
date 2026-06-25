@@ -13,7 +13,7 @@ export async function conversationCount(
   if (!tenantConfig)
     throw new Error(`TenantConfig not found for tenant: ${tenantId}`);
 
-  const { conversation_count_prompt, conversation_count_virtual_key } =
+  const { conversation_count_model_config } =
     tenantConfig.direct_audio_config;
 
   const client = new OpenAI({
@@ -25,12 +25,12 @@ export async function conversationCount(
 
   const response = await client.chat.completions.create(
     {
-      model: conversation_count_virtual_key,
+      model: conversation_count_model_config.virtual_key,
       messages: [
         {
           role: "user",
           content: [
-            { type: "text", text: conversation_count_prompt },
+            { type: "text", text:  },
             {
               // @ts-ignore - LiteLLM supports audio input via this format
               type: "input_audio",
@@ -39,8 +39,8 @@ export async function conversationCount(
           ],
         },
       ],
-      max_tokens: 14000,
-      temperature: 0,
+      max_tokens: conversation_count_model_config.max_tokens,
+      temperature: conversation_count_model_config.temperature,
     },
     {
       headers: {
