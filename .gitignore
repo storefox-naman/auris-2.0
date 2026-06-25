@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Compiled JS output
+*.js
+*.js.map
+dist/
+build/
+out/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
