@@ -4,7 +4,7 @@ import os from "os";
 import fs from "fs";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Readable } from "stream";
-import { AudioClip } from "./audioClipModel";
+import { AudioClip } from "../models/audioClipModel";
 
 const directAudioPipeline = async (clipId: Types.ObjectId): Promise<string> => {
   const clip = await AudioClip.findById(clipId);

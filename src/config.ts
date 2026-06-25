@@ -14,4 +14,8 @@ export const config = {
   redis: {
     host: process.env.REDIS_HOST || "localhost",
   },
+  litellm: {
+    apiKey: process.env.LITELLM_API_KEY || "secret",
+    baseURL: process.env.LITELLM_BASE_URL || "https://litellm.storefox.ai",
+  },
 };
